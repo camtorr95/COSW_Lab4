@@ -6,6 +6,14 @@ public class Todo {
 	private String dueDate;
 	private String responsible;
 	private String status;
+	
+	public Todo(String description, int priority, String dueDate, String responsible, String status) {
+		this.description = description;
+		this.priority = priority;
+		this.dueDate = dueDate;
+		this.responsible = responsible;
+		this.status = status;
+	}
 
 	public String getDescription() {
 		return description;
@@ -49,7 +57,7 @@ public class Todo {
 
 	@Override
 	public String toString() {
-		return "{description: " + description + ", priority: " + priority + ", dueDate: " + dueDate + ", responsible: "
-				+ responsible + "status: " + status + "}";
+		return "Todo[description=" + description + ", priority=" + priority + ", dueDate=" + dueDate + ", responsible="
+				+ responsible + "status=" + status + "]";
 	}
 }
