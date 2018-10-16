@@ -15,6 +15,11 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Random;
+import java.util.Date;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.stream.Collectors;
+import java.text.SimpleDateFormat;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -23,6 +28,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -66,7 +72,7 @@ public class Application implements CommandLineRunner {
 		System.out.println();
 
 		System.out.println("-------------------------------");
-		System.out.println("Todo found with findByResponsible():");
+		System.out.println("Todo found with findByResponsible(charles@natural):");
 		System.out.println(todoRepository.findByResponsible("charles@natural.com"));
 		System.out.println();
 
@@ -77,6 +83,41 @@ public class Application implements CommandLineRunner {
 		System.out.println("Customer found with query firstName is Alice:");
 		System.out.println(customer.getFirstName() + " " + customer.getLastName());
 
+		System.out.println("-------------------------------");
+		System.out.println("Todos that the due date has expired: " + new Date());
+		query = new Query();
+		query.addCriteria(Criteria.where("dueDate").lt(new Date()));
+		List<Todo> todos = mongoOperation.find(query, Todo.class);
+		todos.forEach(System.out::println);
+		
+		System.out.println("-------------------------------");
+		System.out.println("Todos that are assigned to given user and have priority greater equal to 5: griffith@behelit.com");
+		query = new Query();
+		String given_user = "griffith@behelit.com";
+		query.addCriteria(Criteria.where("priority").gte(5).and("responsible").is(given_user));
+		todos = mongoOperation.find(query, Todo.class);
+		todos.forEach(System.out::println);
+		
+		System.out.println("-------------------------------");
+		System.out.println("List users that have assigned more than 2 Todos.");
+		Aggregation aggregation = Aggregation.newAggregation(
+			Aggregation.group("responsible").count().as("responsibles"),
+			Aggregation.match(Criteria.where("responsibles").gt(2)),
+			Aggregation.project("_id"));
+		List<String> mappedResult = mongoOperation.aggregate(aggregation, "todo", String.class).getMappedResults();
+		List<String> emails = mappedResult.stream()
+							.map(bson -> bson.split(" ")[3].trim())
+							.map(email -> email.substring(1, email.length() -1))
+							.collect(Collectors.toList());
+		userRepository.findByEmailIn(emails).forEach(System.out::println);
+		
+		System.out.println("-------------------------------");
+		System.out.println("Todo list that contains the description with a length greater than 30 characters");
+		aggregation = Aggregation.newAggregation(
+                Aggregation.project("_id", "description", "priority", "dueDate", "responsible", "status", "_class").andExpression("strLenCP(description)").as("length"),
+                Aggregation.match(Criteria.where("length").gt(30)));
+		todos = mongoOperation.aggregate(aggregation, "todo", Todo.class).getMappedResults();
+		todos.forEach(System.out::println);
 	}
 
 	private void init() throws Exception {
@@ -95,41 +136,17 @@ public class Application implements CommandLineRunner {
 		customerRepository.save(new Customer("Freddy", "Mercury"));
 		customerRepository.save(new Customer("Michael", "Jackson"));
 
-		String[] months = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-		String[] emails = { "smeier@yahoo.com", "wenzlaff@yahoo.ca", "credmond@verizon.net", "jugalator@outlook.com",
+		String[] emails = { "smeier@yahoo.com", "griffith@behelit.com", "credmond@verizon.net", "jugalator@outlook.com",
 				"dmath@comcast.net", "carcus@mac.com", "lydia@att.net", "emmanuel@hotmail.com", "frederic@hotmail.com",
 				"rande@me.com" };
 		String[] names = { "smeier", "wenzlaff", "credmond", "jugalator", "dmath", "carcus", "lydia", "emmanuel",
 				"frederic", "rande" };
 		String[] status = { "pending", "completed", "cancelled" };
 
-		String[] todos = {
-
-				"The river stole the gods.", "I would have gotten the promotion, but my attendance wasn’t good enough.",
-				"A glittering gem is not enough.", "The shooter says goodbye to his love.",
-				"She did not cheat on the test, for it was not the right thing to do.",
-				"Sixty-Four comes asking for bread.",
-				"I was very proud of my nickname throughout high school but today- I couldn’t be any different to what my nickname was.",
-				"I checked to make sure that he was still alive.",
-				"Should we start class now, or should we wait for everyone to get here?",
-				"He ran out of money, so he had to stop playing poker.",
-				"Joe made the sugar cookies; Susan decorated them.",
-				"She borrowed the book from him many years ago and hasn't yet returned it.",
-				"The quick brown fox jumps over the lazy dog.",
-				"The clock within this blog and the clock on my laptop are 1 hour different from each other.",
-				"She only paints with bold colors; she does not like pastels.",
-				"She always speaks to him in a loud voice.",
-				"A song can make or ruin a person’s day if they let it get to them.",
-				"I hear that Nancy is very pretty.", "We have a lot of rain in June.",
-				"The memory we used to share is no longer coherent.",
-				"He said he was not there yesterday; however, many people saw him there.", "Hurry!",
-				"He told us a very exciting adventure story.", "They got there early, and they got really good seats.",
-				"I will never be this young again. Ever. Oh damn… I just got older.",
-				"Malls are great places to shop; I can find everything I need under one roof.",
-				"The shooter says goodbye to his love.", "They got there early, and they got really good seats.",
-				"I checked to make sure that he was still alive.", "She did her best to help him."
-
-		};
+		String[] todos = new String[30];
+		for(int i=0; i<30; ++i){
+			todos[i] = "This is the TODO #" + i + (gen.nextInt(10) < 3 ? ". This TODO also has more than 30 characters" : "");
+		}
 
 		userRepository.save(new User(12345, "Charles Darwin", "charles@natural.com"));
 		HashSet<Integer> idSet = new HashSet<>();
@@ -142,14 +159,19 @@ public class Application implements CommandLineRunner {
 			userRepository.save(new User(id, names[i % names.length], emails[i]));
 		}
 
-		todoRepository.save(new Todo("travel to Galapagos", 10, "Jan 10 - 1860", "charles@natural.com", "pending"));
+		Date charlesDate = new SimpleDateFormat("dd-MM-yyyy").parse("10-01-1860");
+		todoRepository.save(new Todo("travel to Galapagos", 10, charlesDate, "charles@natural.com", "pending"));
 		for (int i = 0; i < todos.length; ++i) {
-			int month = gen.nextInt(12) + 1;
-			int day = (month <= 7 ? (month == 2 ? gen.nextInt(28) : month % 2 == 0 ? gen.nextInt(30) : gen.nextInt(31))
-					: (month % 2 == 0 ? gen.nextInt(31) : gen.nextInt(30))) + 1;
-			String dueDate = String.format("%s %d - %d", months[month - 1], day, gen.nextInt(2018 + 1 - 2005) - 2005);
-			todoRepository.save(new Todo(todos[i], gen.nextInt(10) + 1, dueDate, emails[gen.nextInt(emails.length)],
+			todoRepository.save(new Todo(todos[i], gen.nextInt(10) + 1, getRandomDate(gen), emails[gen.nextInt(emails.length)],
 					status[gen.nextInt(status.length)]));
 		}
+	}
+	
+	private static Date getRandomDate(Random gen) throws Exception{
+		int month = gen.nextInt(12) + 1;
+		int day = (month <= 7 ? (month == 2 ? gen.nextInt(28) : month % 2 == 0 ? gen.nextInt(30) : gen.nextInt(31))
+				: (month % 2 == 0 ? gen.nextInt(31) : gen.nextInt(30))) + 1;
+		int year = gen.nextInt(2025 - 2009 + 1) + 2009;
+		return new SimpleDateFormat("dd-MM-yyyy").parse(String.format("%d-%d-%d", day,month,year));
 	}
 }
